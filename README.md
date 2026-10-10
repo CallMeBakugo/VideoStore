@@ -27,3 +27,21 @@ Requires: yt-dlp on PATH, PySide6.
 - `ytdl-box.py` — the PySide6 shell.
 
 The bar-widget sibling lives in [VideoStoreBar](../VideoStoreBar).
+
+## Mobile (Android APK)
+
+The same app ships as an APK — same engine philosophy: pure download logic
+(`videostore/core_lib.py`, yt-dlp imported as a library, no subprocess), a
+thin Kivy shell (`videostore/main.py`), built with buildozer. No store, no
+iOS: releases attach the raw APK here.
+
+Build (Arch example; JDK 17, `buildozer` + `cython` on PATH):
+
+    cd android
+    buildozer android debug
+
+Output: `android/bin/videostore-0.1.0-debug.apk`.
+
+Note: yt-dlp's mp3 extraction needs ffmpeg; python-for-android does not
+bundle it, so on-device "Audio only (mp3)" returns best-audio native format
+(m4a/webm). The other formats are unaffected.

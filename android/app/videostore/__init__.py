@@ -1,0 +1,1 @@
+"""VideoStore mobile package."""
