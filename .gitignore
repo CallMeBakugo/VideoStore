@@ -1,3 +1,4 @@
 __pycache__/
 android/.venv/
 android/.buildozer/
+android/bin/
