@@ -3,12 +3,18 @@ title = VideoStore
 package.name = videostore
 package.domain = org.callmebakugo
 
+# Pin p4a to the last pre-3.14 commit: python3/hostpython3 recipes at 3.11.13
+# with their matching patch set. master pins them to 3.14.2, for which
+# kivy/pyjnius Android wheels do not exist yet. buildozer git-resets the
+# checkout to this exact commit on every run, so no branch can be clobbered.
+p4a.commit = 3762c88c
+
 source.dir = app
 source.include_exts = py,png,jpg,kv,ttf
 
 version = 0.1.0
 
-requirements = python3,kivy==2.3.0,yt-dlp,android
+requirements = python3,kivy,yt-dlp,android
 
 orientation = portrait
 
@@ -23,6 +29,11 @@ fullscreen = 0
 [buildozer]
 log_level = 2
 warn_on_root = 1
+
+# Our fork of p4a pinned to the last pre-3.14 commit: python3/hostpython3
+# recipes at 3.11.13 with their matching patch set. The default master pins
+# recipes to 3.14.2, for which kivy/pyjnius Android wheels do not exist yet.
+p4a.branch = py311-pin
 
 # Build for the phone you own
 [app@android]
