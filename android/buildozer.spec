@@ -18,8 +18,11 @@ requirements = python3,kivy,yt-dlp,android
 
 orientation = portrait
 
-# Your icon: purple VS film-gradient
+# Launcher icon: legacy square PNG + adaptive layers (fg monogram in safe zone,
+# bg purple gradient) — buildozer passes these to p4a as --icon-fg/--icon-bg.
 icon.filename = %(source.dir)s/icon.png
+icon.adaptive_foreground.filename = %(source.dir)s/adaptive/ic_launcher_fg.png
+icon.adaptive_background.filename = %(source.dir)s/adaptive/ic_launcher_bg.png
 
 fullscreen = 0
 
