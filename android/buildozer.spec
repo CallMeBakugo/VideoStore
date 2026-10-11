@@ -12,7 +12,7 @@ p4a.commit = 3762c88c
 source.dir = app
 source.include_exts = py,png,jpg,kv,ttf,xml
 
-version = 0.2.0
+version = 0.2.1
 
 requirements = python3,kivy,yt-dlp,android
 
