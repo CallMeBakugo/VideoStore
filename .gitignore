@@ -2,3 +2,5 @@ __pycache__/
 android/.venv/
 android/.buildozer/
 android/bin/
+buildozer.spec.local
+android/buildozer.secrets

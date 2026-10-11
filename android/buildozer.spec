@@ -10,9 +10,9 @@ package.domain = org.callmebakugo
 p4a.commit = 3762c88c
 
 source.dir = app
-source.include_exts = py,png,jpg,kv,ttf
+source.include_exts = py,png,jpg,kv,ttf,xml
 
-version = 0.1.0
+version = 0.2.0
 
 requirements = python3,kivy,yt-dlp,android
 
@@ -23,8 +23,12 @@ icon.filename = %(source.dir)s/icon.png
 
 fullscreen = 0
 
-# APK signing key (generated at build time if absent; set for release builds)
-# android.release_artifact = aab
+# Release-signed with our own keystore (password in the keepass vault entry
+# VideoStore_APK_Keystore; keystore at ~/.local/share/videostore.keystore).
+android.release_artifact = apk
+
+# Release signing creds come from the local gitignored buildozer.secrets file,
+# which buildozer reads via environment variables set in the build script.
 
 [buildozer]
 log_level = 2
@@ -33,11 +37,10 @@ warn_on_root = 1
 # Our fork of p4a pinned to the last pre-3.14 commit: python3/hostpython3
 # recipes at 3.11.13 with their matching patch set. The default master pins
 # recipes to 3.14.2, for which kivy/pyjnius Android wheels do not exist yet.
-p4a.branch = py311-pin
-
 # Build for the phone you own
 [app@android]
 android.archs = arm64-v8a
 android.api = 34
 android.minapi = 27
 android.allow_backup = False
+
