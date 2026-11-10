@@ -3,10 +3,15 @@
 from kivy.clock import Clock
 from kivy.lang import Builder
 from kivy.metrics import dp
-from kivy.properties import StringProperty
+import queue
+import sys
+
+from kivy.properties import NumericProperty, StringProperty
+from kivy.base import ExceptionHandler, ExceptionManager
 from kivy.app import App
 
 from .core_lib import FORMATS, LibGrabber
+from . import diagnostics, storage
 
 KV = """
 #:import dp kivy.metrics.dp
@@ -72,7 +77,7 @@ BoxLayout:
         disabled: app.state == "downloading"
         size_hint_y: None
         height: dp(48)
-        background_color: 0.0, 0.55, 0.49, 1 if app.state != "downloading" else 0.3, 0.35, 0.35, 1
+        background_color: (0.0, 0.55, 0.49, 1) if app.state != "downloading" else (0.3, 0.35, 0.35, 1)
         color: 1, 1, 1, 1
         on_press: app.start()
 
@@ -103,7 +108,7 @@ BoxLayout:
 
 
 class VideoStoreApp(App):
-    pct = 0.0
+    pct = NumericProperty(0.0)
     state = StringProperty("idle")
     status = StringProperty("")
 
@@ -113,10 +118,52 @@ class VideoStoreApp(App):
         self.outdir = LibGrabber.default_outdir()
         self.fmt_labels = [f["label"] for f in FORMATS.values()]
         self._thread = None
+        self._events = queue.SimpleQueue()
 
     def build(self):
         self.title = "VideoStore"
         return Builder.load_string(KV)
+
+    def on_start(self):
+        diagnostics.install(lambda report: self._events.put(("error", report)))
+        events = self._events
+
+        class VisibleErrors(ExceptionHandler):
+            def handle_exception(self, exc):
+                events.put(("error", diagnostics.record(type(exc), exc, exc.__traceback__)))
+                return ExceptionManager.PASS
+
+        self._exception_handler = VisibleErrors()
+        ExceptionManager.add_handler(self._exception_handler)
+        Clock.schedule_interval(self._drain_events, 0.1)
+        try:
+            if storage.request_shared_storage():
+                self.status = "Allow all-files access for Download; otherwise using app files."
+        except Exception:
+            self.status = "Using app files; shared Download access unavailable."
+
+    def on_pause(self):
+        return True
+
+    def on_resume(self):
+        self.outdir = LibGrabber.default_outdir()
+        self.root.ids.outdir.text = self.outdir
+        self.status = "Save folder: " + self.outdir
+
+    def _drain_events(self, dt):
+        while not self._events.empty():
+            kind, value = self._events.get_nowait()
+            if kind == "progress":
+                self._setpct(value)
+            elif kind == "done":
+                self._done(value)
+            elif kind == "fail":
+                self._fail(value)
+            elif kind == "error":
+                from kivy.uix.popup import Popup
+                from kivy.uix.textinput import TextInput
+                Popup(title="VideoStore error", content=TextInput(
+                    text=value, readonly=True, multiline=True)).open()
 
     def _label_to_key(self, label):
         for k, f in FORMATS.items():
@@ -125,12 +172,15 @@ class VideoStoreApp(App):
         return "label_best"
 
     def start(self):
+        if self.state == "downloading":
+            return
         url = self.root.ids.url.text.strip()
         if not url:
             self.status = "Paste a link first."
             return
         key = self._label_to_key(self.root.ids.fmt.text)
         outdir = self.root.ids.outdir.text or self.outdir
+        self.grabber = LibGrabber()
         self.state = "downloading"
         self.pct = 0.0
         self.status = "Fetching…"
@@ -140,16 +190,18 @@ class VideoStoreApp(App):
         def work():
             try:
                 final = self.grabber.run(url, key, outdir, on_progress=self._prog)
-                Clock.schedule_once(lambda dt: self._done(final), 0)
+                self._events.put(("done", final))
             except Exception as exc:  # noqa: BLE001
-                msg = "cancelled" if "cancelled" in str(exc) else str(exc)[:80]
-                Clock.schedule_once(lambda dt: self._fail(msg), 0)
+                msg = "cancelled" if self.grabber._cancel else str(exc)
+                if msg != "cancelled":
+                    self._events.put(("error", diagnostics.record(*sys.exc_info())))
+                self._events.put(("fail", msg))
 
         self._thread = threading.Thread(target=work, daemon=True)
         self._thread.start()
 
     def _prog(self, pct):
-        Clock.schedule_once(lambda dt: self._setpct(pct), 0)
+        self._events.put(("progress", pct))
 
     def _setpct(self, pct):
         self.pct = float(pct)

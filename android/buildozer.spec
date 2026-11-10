@@ -12,7 +12,7 @@ p4a.commit = 3762c88c
 source.dir = app
 source.include_exts = py,png,jpg,kv,ttf,xml
 
-version = 0.2.1
+version = 0.3.0
 
 requirements = python3,kivy,yt-dlp,android
 
@@ -29,6 +29,7 @@ fullscreen = 0
 # Release-signed with our own keystore (password in the keepass vault entry
 # VideoStore_APK_Keystore; keystore at ~/.local/share/videostore.keystore).
 android.release_artifact = apk
+android.permissions = INTERNET,MANAGE_EXTERNAL_STORAGE
 
 # Release signing creds come from the local gitignored buildozer.secrets file,
 # which buildozer reads via environment variables set in the build script.

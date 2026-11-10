@@ -9,6 +9,8 @@ import os
 
 from yt_dlp import YoutubeDL
 
+from .storage import default_outdir
+
 FORMATS = {
     "label_best": {
         "label": "Best video+audio",
@@ -42,14 +44,9 @@ class LibGrabber:
 
     def __init__(self) -> None:
         self._ydl: YoutubeDL | None = None
+        self._cancel = False
 
-    @staticmethod
-    def default_outdir() -> str:
-        # Android: /storage/emulated/0/Download; desktop: ~/Downloads
-        for cand in ("/storage/emulated/0/Download",):
-            if os.path.isdir(cand):
-                return cand
-        return os.path.join(os.path.expanduser("~"), "Downloads")
+    default_outdir = staticmethod(default_outdir)
 
     def run(
         self,
@@ -84,23 +81,26 @@ class LibGrabber:
                 final = d.get("filename") or final
 
         ydl_opts["postprocessor_hooks"] = [settle]
-        self._ydl = YoutubeDL(ydl_opts)
-        info = self._ydl.extract_info(url, download=True)
-        if info and not final:
-            final = self._ydl.prepare_filename(info)
-        return final
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                self._ydl = ydl
+                if self._cancel:
+                    raise RuntimeError("cancelled")
+                info = ydl.extract_info(url, download=True)
+                if self._cancel:
+                    raise RuntimeError("cancelled")
+                if info and not final:
+                    final = ydl.prepare_filename(info)
+                return final
+        finally:
+            self._ydl = None
 
     def cancel(self) -> None:
-        if self._ydl is not None:
-            # raise inside the progress hook; yt-dlp unwinds the download
-            self._cancel = True
-
-    _cancel = False
+        self._cancel = True
 
     def _hook(self, on_progress):
         def hook(d):
             if self._cancel:
-                self._cancel = False
                 raise RuntimeError("cancelled")
             if d.get("status") == "downloading" and on_progress:
                 total = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
