@@ -50,7 +50,36 @@ find "$ANDROID_DIR/app" -type d -name __pycache__ -prune -exec rm -rf -- {} +
 # Old release files must not be mistaken for this build's output.
 mkdir -p bin
 marker=$(mktemp)
-trap 'rm -f -- "$marker"' EXIT
+build_log="$marker.build.log"
+trap 'rm -f -- "$marker" "$build_log"' EXIT
+# A fresh p4a hostpython build omits compiled stdlib extensions from Lib/.
+# Let pass 1 build them, then stage them outside the reset p4a checkout.
+if "$PYTHON_HOME/bin/buildozer" android release 2>&1 | tee "$build_log"; then
+    :
+else
+    build_status=$?
+    if ! grep -Fq "No module named 'math'" "$build_log"; then
+        echo 'Build pass 1 failed without the expected missing-math error; stopping.' >&2
+        exit "$build_status"
+    fi
+fi
+
+host_libs=("$ANDROID_DIR"/.buildozer/android/platform/build-*/build/other_builds/hostpython3/desktop/hostpython3/Lib)
+if (( ${#host_libs[@]} == 0 )); then
+    echo 'No staged hostpython3 Lib directory found after build pass 1.' >&2
+    exit 1
+fi
+for host_lib in "${host_libs[@]}"; do
+    [[ -d "$host_lib/lib-dynload" ]] && continue
+    extensions=("$host_lib"/../native-build/build/lib.*/*.so)
+    if (( ${#extensions[@]} == 0 )); then
+        echo "No compiled hostpython3 extensions found for $host_lib" >&2
+        exit 1
+    fi
+    mkdir -- "$host_lib/lib-dynload"
+    cp -- "${extensions[@]}" "$host_lib/lib-dynload/"
+done
+# The cached hostpython binary skips rebuilding, preserving lib-dynload.
 "$PYTHON_HOME/bin/buildozer" android release
 
 python - "$ANDROID_DIR" "$marker" <<'PY'

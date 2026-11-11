@@ -18,6 +18,14 @@ clean rebuild; network access and time to download dependencies are required.
 The p4a pin **3762c88c** must remain: its runtime is Python **3.11.13**. Host
 Python 3.12 and target Python 3.11 are intentionally different.
 
+The script runs Buildozer twice. Pass 1 may fail with `No module named 'math'`
+while building pyjnius; any other failure stops the script. Between passes it
+copies the built hostpython stdlib extensions into `Lib/lib-dynload`, skipping
+directories already staged. Pass 2 reuses the cached builds and must succeed.
+This workaround does not modify the p4a checkout, which Buildozer resets on
+each run. The Android settings live in `[app]`: arm64-v8a only, API 34,
+minimum API 27, and backups disabled.
+
 The script builds a release APK and fails unless exactly one fresh APK exists,
 no native library references `libpython3.14.so`, every `libmain.so` references
 `libpython3.11.so`, that runtime is packaged, and `assets/private.tar` contains

@@ -30,6 +30,11 @@ fullscreen = 0
 # VideoStore_APK_Keystore; keystore at ~/.local/share/videostore.keystore).
 android.release_artifact = apk
 android.permissions = INTERNET,MANAGE_EXTERNAL_STORAGE
+# Build for the phone you own. Android settings belong in [app].
+android.archs = arm64-v8a
+android.api = 34
+android.minapi = 27
+android.allow_backup = False
 
 # Release signing creds come from the local gitignored buildozer.secrets file,
 # which buildozer reads via environment variables set in the build script.
@@ -37,14 +42,4 @@ android.permissions = INTERNET,MANAGE_EXTERNAL_STORAGE
 [buildozer]
 log_level = 2
 warn_on_root = 1
-
-# Our fork of p4a pinned to the last pre-3.14 commit: python3/hostpython3
-# recipes at 3.11.13 with their matching patch set. The default master pins
-# recipes to 3.14.2, for which kivy/pyjnius Android wheels do not exist yet.
-# Build for the phone you own
-[app@android]
-android.archs = arm64-v8a
-android.api = 34
-android.minapi = 27
-android.allow_backup = False
 
