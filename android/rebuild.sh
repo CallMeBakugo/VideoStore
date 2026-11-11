@@ -87,7 +87,7 @@ for ab in "${android_builds[@]}"; do
     staged="$ab/$staged_rel"
     if [[ ! -f "$staged/_sysconfigdata__linux_x86_64-linux-gnu.py" ]]; then
         mkdir -p -- "$staged"
-        cp "$host_native/build/lib.linux-x86_64-3.11/." "$staged/"
+        cp -r "$host_native/build/lib.linux-x86_64-3.11/." "$staged/"
     fi
     printf '%s\n' "$staged_rel" > "$ab/pybuilddir.txt"
     if [[ ! -d "$staged/Cython" ]]; then
