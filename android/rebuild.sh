@@ -52,8 +52,18 @@ mkdir -p bin
 marker=$(mktemp)
 build_log="$marker.build.log"
 trap 'rm -f -- "$marker" "$build_log"' EXIT
-# A fresh p4a hostpython build omits compiled stdlib extensions from Lib/.
-# Let pass 1 build them, then stage them outside the reset p4a checkout.
+# A clean p4a tree produces an android-build python runner that is a
+# build-tree binary: its stdlib resolves from the staged hostpython3 Lib/
+# (pure .py only) and its extension dir comes from pybuilddir.txt, which
+# names the ANDROID-arch build dir — objects an x86_64 host can never
+# load. The PEP 517 build isolation used by the pyjnius/android recipes
+# sanitizes PYTHONPATH, so its venv python sees exactly three path groups:
+# hostpython3/Lib, <android-build>/<pybuilddir dir>, and the isolated env
+# itself. Pass 1 therefore fails at pyjnius with `No module named 'math'`.
+# Let pass 1 build everything, then stage a complete x86_64 stdlib dir
+# into the one path group we control, redirect pybuilddir.txt at it, and
+# add the Cython package (the android recipe's setup.py imports Cython
+# without declaring it; the isolated env only installs setuptools).
 if "$PYTHON_HOME/bin/buildozer" android release 2>&1 | tee "$build_log"; then
     :
 else
@@ -64,22 +74,33 @@ else
     fi
 fi
 
-host_libs=("$ANDROID_DIR"/.buildozer/android/platform/build-*/build/other_builds/hostpython3/desktop/hostpython3/Lib)
-if (( ${#host_libs[@]} == 0 )); then
-    echo 'No staged hostpython3 Lib directory found after build pass 1.' >&2
+android_builds=("$ANDROID_DIR"/.buildozer/android/platform/build-*/build/other_builds/python3/*/python3/android-build)
+host_natives=("$ANDROID_DIR"/.buildozer/android/platform/build-*/build/other_builds/hostpython3/desktop/hostpython3/native-build)
+if (( ${#android_builds[@]} == 0 )) || (( ${#host_natives[@]} == 0 )); then
+    echo 'No android-build or hostpython3 native-build dir found after pass 1.' >&2
     exit 1
 fi
-for host_lib in "${host_libs[@]}"; do
-    [[ -d "$host_lib/lib-dynload" ]] && continue
-    extensions=("$host_lib"/../native-build/build/lib.*/*.so)
-    if (( ${#extensions[@]} == 0 )); then
-        echo "No compiled hostpython3 extensions found for $host_lib" >&2
-        exit 1
+host_native="${host_natives[0]}"
+site_root=$(dirname "$host_native")/root/usr/local/lib/python3.11/site-packages
+staged_rel=build/lib.linux-x86_64-3.11
+for ab in "${android_builds[@]}"; do
+    staged="$ab/$staged_rel"
+    if [[ ! -f "$staged/_sysconfigdata__linux_x86_64-linux-gnu.py" ]]; then
+        mkdir -p -- "$staged"
+        cp "$host_native/build/lib.linux-x86_64-3.11/." "$staged/"
     fi
-    mkdir -- "$host_lib/lib-dynload"
-    cp -- "${extensions[@]}" "$host_lib/lib-dynload/"
+    printf '%s\n' "$staged_rel" > "$ab/pybuilddir.txt"
+    if [[ ! -d "$staged/Cython" ]]; then
+        if [[ ! -d "$site_root/Cython" ]]; then
+            echo "Cython package missing from $site_root; p4a tooling setup did not run." >&2
+            exit 1
+        fi
+        cp -r "$site_root/Cython" "$site_root/cython.py" "$staged/"
+    fi
 done
-# The cached hostpython binary skips rebuilding, preserving lib-dynload.
+# The cached hostpython binary skips rebuilding, so the staged dir and the
+# pybuilddir.txt redirect survive into pass 2; recipes then resolve their
+# full stdlib and Cython from the runner's own build-tree paths.
 "$PYTHON_HOME/bin/buildozer" android release
 
 python - "$ANDROID_DIR" "$marker" <<'PY'

@@ -20,11 +20,14 @@ Python 3.12 and target Python 3.11 are intentionally different.
 
 The script runs Buildozer twice. Pass 1 may fail with `No module named 'math'`
 while building pyjnius; any other failure stops the script. Between passes it
-copies the built hostpython stdlib extensions into `Lib/lib-dynload`, skipping
-directories already staged. Pass 2 reuses the cached builds and must succeed.
-This workaround does not modify the p4a checkout, which Buildozer resets on
-each run. The Android settings live in `[app]`: arm64-v8a only, API 34,
-minimum API 27, and backups disabled.
+stages a complete x86_64 stdlib directory into the android-build python's
+build tree and points its `pybuilddir.txt` at it (PEP 517 build isolation
+sanitizes PYTHONPATH, so that build-tree dir is the only path its venv python
+sees beyond the pure-.py Lib), and copies the Cython package there (the
+android recipe's setup.py imports Cython without declaring it). Pass 2 reuses
+the cached builds and must succeed. This workaround does not modify the p4a
+checkout, which Buildozer resets on each run. The Android settings live in
+`[app]`: arm64-v8a only, API 34, minimum API 27, and backups disabled.
 
 The script builds a release APK and fails unless exactly one fresh APK exists,
 no native library references `libpython3.14.so`, every `libmain.so` references
