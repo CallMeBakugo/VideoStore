@@ -81,7 +81,7 @@ if (( ${#android_builds[@]} == 0 )) || (( ${#host_natives[@]} == 0 )); then
     exit 1
 fi
 host_native="${host_natives[0]}"
-site_root=$(dirname "$host_native")/root/usr/local/lib/python3.11/site-packages
+site_root="$host_native/root/usr/local/lib/python3.11/site-packages"
 staged_rel=build/lib.linux-x86_64-3.11
 for ab in "${android_builds[@]}"; do
     staged="$ab/$staged_rel"
