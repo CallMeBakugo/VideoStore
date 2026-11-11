@@ -1,0 +1,53 @@
+{
+  "decision": "REJECTED_FOR_RELEASE_AUDIT",
+  "reason": "Exact corresponding source and build recipes for bundled native dependencies cannot be verified from the pinned upstream release. Runtime unusability is not established.",
+  "coordinates": "io.github.junkfood02.youtubedl-android:{library,common,ffmpeg}:0.18.1",
+  "source_commit": "d725d5c9a18c3a99a13ee0308bf78275dc310760",
+  "artifacts": {
+    "library": {
+      "url": "https://repo.maven.apache.org/maven2/io/github/junkfood02/youtubedl-android/library/0.18.1/library-0.18.1.aar",
+      "sha256": "579b5fb480892b1abc2b218c2089699d52759cc8d7ba256bf876453f0365faef"
+    },
+    "common": {
+      "url": "https://repo.maven.apache.org/maven2/io/github/junkfood02/youtubedl-android/common/0.18.1/common-0.18.1.aar",
+      "sha256": "e0c0530bdbdf203e1598e900085d3582e27360731872872f3a67f23a9b24c0b5"
+    },
+    "ffmpeg": {
+      "url": "https://repo.maven.apache.org/maven2/io/github/junkfood02/youtubedl-android/ffmpeg/0.18.1/ffmpeg-0.18.1.aar",
+      "sha256": "0a87ffa6cf912b0fe76c1a99b9107f543ee2f247935fae2c71f0822eb7bc5f49"
+    }
+  },
+  "arm64_payloads": {
+    "library/jni/arm64-v8a/libpython.so": {
+      "sha256": "58ba29cfc5a6d88281c07b2b480fb1d8cce1b78f280b002347f792cfd9cf5901",
+      "matches_source_tag": true
+    },
+    "library/jni/arm64-v8a/libpython.zip.so": {
+      "sha256": "7edecb6c9bd3a94456168d44911d8aea9f917bedef90c320a29500d92ac3eb62",
+      "matches_source_tag": true
+    },
+    "library/jni/arm64-v8a/libqjs.so": {
+      "sha256": "a0fe160a8cd76eec34132f945664856e96687d701e3b1ff28dff44ea1fad13bc",
+      "matches_source_tag": true
+    },
+    "ffmpeg/jni/arm64-v8a/libffmpeg.so": {
+      "sha256": "1b8d5c371ea79e6e7a1930b31f2ad6a2731e48d75ceddc9c36dffda6e0092401",
+      "matches_source_tag": true
+    },
+    "ffmpeg/jni/arm64-v8a/libffmpeg.zip.so": {
+      "sha256": "4664a895283f9f31786be39b0c484c1f96631f02c7c7f9c70a4a4a2da324a092",
+      "matches_source_tag": true
+    },
+    "ffmpeg/jni/arm64-v8a/libffprobe.so": {
+      "sha256": "a4d4a6d1562aa87934e99ee1a43f8090ec1040659cedb667d6edf3aa08408c5e",
+      "matches_source_tag": true
+    }
+  },
+  "observed_python": "3.12.11",
+  "observed_ytdlp": "2025.11.12",
+  "ffmpeg_license_string": "GPL version 3 or later",
+  "reachable_native_dependency_closure": {
+    "visited": 102,
+    "missing": []
+  }
+}
