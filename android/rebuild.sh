@@ -81,7 +81,6 @@ if (( ${#android_builds[@]} == 0 )) || (( ${#host_natives[@]} == 0 )); then
     exit 1
 fi
 host_native="${host_natives[0]}"
-site_root="$host_native/root/usr/local/lib/python3.11/site-packages"
 staged_rel=build/lib.linux-x86_64-3.11
 for ab in "${android_builds[@]}"; do
     staged="$ab/$staged_rel"
@@ -90,12 +89,17 @@ for ab in "${android_builds[@]}"; do
         cp -r "$host_native/build/lib.linux-x86_64-3.11/." "$staged/"
     fi
     printf '%s\n' "$staged_rel" > "$ab/pybuilddir.txt"
+    # The staged dir shadows every isolated env's own Cython, so its version
+    # must satisfy ALL recipes: kivy declares ~=3.1.2 (3.0.12 dies on
+    # weakproxy.pyx), pyjnius wants >=3.1.2, the android recipe imports
+    # Cython undeclared and just cythonizes at language_level 3. Cython
+    # 3.1.8 satisfies all three. Stage it fresh from PyPI each run.
     if [[ ! -d "$staged/Cython" ]]; then
-        if [[ ! -d "$site_root/Cython" ]]; then
-            echo "Cython package missing from $site_root; p4a tooling setup did not run." >&2
-            exit 1
-        fi
-        cp -r "$site_root/Cython" "$site_root/cython.py" "$staged/"
+        cy_tmp=$(mktemp -d)
+        "$PYTHON_HOME/bin/pip" install 'Cython==3.1.8' --target "$cy_tmp" \
+            --python-version 3.11.13 --only-binary=:all: --upgrade --quiet
+        cp -r "$cy_tmp/Cython" "$cy_tmp/cython.py" "$staged/"
+        rm -rf -- "$cy_tmp"
     fi
 done
 # The cached hostpython binary skips rebuilding, so the staged dir and the
