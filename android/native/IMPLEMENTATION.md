@@ -1,3 +1,72 @@
+Native folders, playlists and background queue — 0.5.0
+======================================================
+
+Current behavior
+----------------
+- Version 0.5.0 / 1050000, signed ARM64. The existing build/verification tools
+  now target this APK. `release-verification.json` records its digest and signer.
+- Separate audio (formats 3/4) and video (formats 0–2) destinations use Android's
+  ACTION_OPEN_DOCUMENT_TREE picker and persisted read/write grants. Settings
+  retain the tree URI and display name. Default remains Downloads/VideoStore
+  through MediaStore. Every queued job captures its destination; changes affect
+  future submissions. Grants are retained for queued work and saved-file access.
+- Custom-folder publication uses DocumentsContract; copy success is journaled
+  after closing the output stream. A unique job prefix lets recovery locate
+  files created immediately before a process death. Incomplete documents are
+  deleted before retry; committed documents become completed history entries.
+  Unlike MediaStore, arbitrary document providers cannot hide partial files
+  during copying. Names carry the job UUID for unambiguous interrupted-save
+  recovery, and title bytes are capped to fit typical filename limits.
+- Revoked/inaccessible destinations fail visibly without falling back to a
+  different folder. Restore the original folder grant and Retry. Open/Share
+  support both URI types; document deletion uses DocumentsContract. History
+  removal protects unresolved publication journals from being discarded.
+- Multi-link input validates the entire submission before adding any jobs and
+  removes repeated links within the submission. Duplicate prompts retain the
+  submitted URLs, format and destination, including an Add only new links option.
+- Explicit Download full playlists mode lists entries with the pinned engine,
+  then atomically inserts individual jobs immediately after the parent. Normal
+  media links still work in this mode. Children inherit format/destination,
+  preserve playlist order, and use the original playlist position when no
+  standalone URL is available. An expanded parent cannot be retried into a
+  second copy of its children. Failed items leave subsequent jobs runnable.
+- Queue/history rendering is lazy so large playlists do not launch thumbnail
+  requests for every queued item. Active jobs are displayed in queue order.
+- Foreground service remains START_STICKY and explicitly stopWithTask=false.
+  It owns the queue independently of the activity. During initialization and
+  active jobs it holds a ten-minute partial wake lock, renewed after five
+  minutes and released between jobs, while waiting for Wi-Fi, and at teardown.
+  Graceful service destruction retains partial files and requeues interrupted
+  work rather than treating it as a user cancellation.
+- Added normal WAKE_LOCK permission plus POST_NOTIFICATIONS. The latter is
+  requested on Android 13+ after the first new enqueue and is optional. Foreground
+  notifications show the current title, stage/progress, remaining count and Cancel.
+  No battery-optimization exemption is requested. Force-stop, reboot and Android
+  or vendor restrictions may interrupt the service; reopening offers Resume queue.
+- The pinned engine, SDK targets and runtime dependency versions are unchanged.
+  Sources and APK are prepared locally; no new commit, push or release publication.
+
+Validation
+----------
+- 40 host JVM checks pass: prior progress/error handling plus batch validation,
+  destination classification/capture, duplicate identity, child order and source
+  selection, UTF-8 filename length, and publication recovery status decisions.
+- Pinned Python bundle host smoke passes: MP3 conversion/progress and a local
+  two-item HTML playlist, flat enumeration, individual playlist-item selection,
+  and serial file downloads. It uses host Python/FFmpeg, not Android executables.
+- Debug/release builds, full debug lint, lint-vital and release identity/signature
+  verification pass. Signing certificate and historical engine-audit bytes match.
+- No Android device is connected. Persisted document grants/provider recovery,
+  notification permission, screen-off operation and task dismissal remain
+  unverified on Android; see DEVICE-ACCEPTANCE.md.
+
+Platform references
+-------------------
+- [Android document-tree grants](https://developer.android.com/training/data-storage/shared/documents-files)
+- [Foreground-service behavior changes](https://developer.android.com/develop/background-work/services/fgs/changes)
+
+The 0.4.0 and 0.3.1 records below are historical and are superseded above.
+
 Native improvements — 0.4.0; device acceptance pending
 =====================================================
 

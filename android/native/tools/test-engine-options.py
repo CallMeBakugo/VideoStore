@@ -21,6 +21,8 @@ with tempfile.TemporaryDirectory() as directory:
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self,*a,**kw): super().__init__(*a,directory=directory,**kw)
         def log_message(self,*a): pass
+    shutil.copyfile(root/'fixture.wav', root/'second.wav')
+    (root/'playlist.html').write_text('<html><title>Local playlist</title><audio src="fixture.wav" controls></audio><audio src="second.wav" controls></audio></html>')
     server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
     threading.Thread(target=server.serve_forever,daemon=True).start()
     url=f'http://127.0.0.1:{server.server_port}/fixture.wav'
@@ -31,5 +33,23 @@ with tempfile.TemporaryDirectory() as directory:
     assert '[ExtractAudio]' in result.stdout, result.stdout
     path=next(line.split('|',1)[1] for line in result.stdout.splitlines() if line.startswith('VSFILE|'))
     assert Path(path).is_file() and Path(path).suffix=='.mp3'
+    import json
+    playlist_url=f'http://127.0.0.1:{server.server_port}/playlist.html'
+    listing=subprocess.run([sys.executable,str(bundle),playlist_url,'--yes-playlist','--flat-playlist','--dump-single-json'],capture_output=True,text=True,timeout=60)
+    assert listing.returncode==0, listing.stderr
+    info=json.loads(listing.stdout)
+    assert len(info['entries'])==2, info
+    for index in (1,2):
+        selected=subprocess.run([sys.executable,str(bundle),playlist_url,'--yes-playlist','--playlist-items',str(index),'--dump-single-json'],capture_output=True,text=True,timeout=60)
+        assert selected.returncode==0, selected.stderr
+        entry=json.loads(selected.stdout)
+        assert len(entry['entries'])==1, entry
+        output_dir=root/f'item-{index}'
+        output_dir.mkdir()
+        selected_args=[sys.executable,str(bundle),playlist_url,'--yes-playlist','--playlist-items',str(index),'--no-quiet','--no-simulate','--print','after_move:VSFILE|%(filepath)s','-f','ba/b','-o',str(output_dir/'media.%(ext)s')]
+        downloaded=subprocess.run(selected_args,capture_output=True,text=True,timeout=60)
+        assert downloaded.returncode==0, downloaded.stderr
+        paths=[line.split('|',1)[1] for line in downloaded.stdout.splitlines() if line.startswith('VSFILE|')]
+        assert len(paths)==1 and Path(paths[0]).read_bytes()==(root/'fixture.wav').read_bytes(), downloaded.stdout
     server.shutdown()
-    print('Bundled yt-dlp host smoke: progress, conversion-stage log, final path and MP3 output passed (host FFmpeg, not Android runtime).')
+    print('Bundled yt-dlp host smoke passed: MP3 conversion/progress and two-item playlist listing, selection and serial downloads (host FFmpeg, not Android runtime).')

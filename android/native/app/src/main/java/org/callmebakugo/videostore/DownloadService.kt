@@ -3,6 +3,8 @@ package org.callmebakugo.videostore
 import android.app.*
 import android.content.Intent
 import org.json.JSONObject
+import android.os.PowerManager
+import android.os.SystemClock
 import android.os.IBinder
 import android.os.Handler
 import android.os.Looper
@@ -20,6 +22,14 @@ class DownloadService : Service() {
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var active: String? = null
     private var running = false
+    private lateinit var wakeLock: PowerManager.WakeLock
+    @Volatile private var wakeRenewed = 0L
+    @Synchronized private fun keepAwake() {
+        if (destroyed) return
+        wakeLock.acquire(10 * 60 * 1000L)
+        wakeRenewed = SystemClock.elapsedRealtime()
+    }
+    @Synchronized private fun releaseAwake() { if (wakeLock.isHeld) wakeLock.release() }
     @Volatile private var destroyed = false
     private val main = Handler(Looper.getMainLooper())
     @Volatile private var networkPaused = false
@@ -27,26 +37,35 @@ class DownloadService : Service() {
     private val networkMonitor = object : Runnable {
         override fun run() {
             if (destroyed) return
+            if (wakeLock.isHeld && SystemClock.elapsedRealtime() - wakeRenewed > 5 * 60 * 1000L) keepAwake()
             if (active != null && !wifiAllowed()) { networkPaused = true; killEngineProcesses() }
             main.postDelayed(this, 1000)
         }
     }
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onCreate() {
-        super.onCreate(); Jobs.load(this); main.post(networkMonitor)
+        super.onCreate(); Jobs.load(this)
+        wakeLock = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "VideoStore:downloads").apply { setReferenceCounted(false) }
+        main.post(networkMonitor)
         getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel("downloads", "Downloads", NotificationManager.IMPORTANCE_LOW))
     }
     private fun notification(message: String, id: String? = active): Notification {
+        val current = Jobs.snapshot().firstOrNull { it.id == id }
+        val remaining = Jobs.snapshot().count { it.status in activeStatuses }
         val builder = Notification.Builder(this, "downloads").setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("VideoStore").setContentText(message).setOngoing(true)
+            .setContentTitle(current?.title?.ifBlank { "VideoStore" } ?: "VideoStore")
+            .setContentText(if (current?.status == "Downloading") "$message · ${current.progress}%" else message)
+            .setSubText("VideoStore · $remaining remaining").setOngoing(true)
             .setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
+        if (current?.status == "Downloading") builder.setProgress(100, current.progress, false)
+        else if (current?.status in setOf("Reading playlist", "Fetching details", "Converting", "Saving")) builder.setProgress(0, 0, true)
         if (id != null) builder.addAction(Notification.Action.Builder(null, "Cancel",
             PendingIntent.getService(this, 1, Intent(this, DownloadService::class.java).setAction("cancel").putExtra("id", id), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)).build())
         return builder.build()
     }
     @android.annotation.SuppressLint("NotificationPermission")
     private fun updateNotification(message: String) {
-        // Notifications are optional; the mandatory foreground notification uses startForeground.
+        // The user can decline notifications; foreground execution still uses startForeground.
         val manager = getSystemService(NotificationManager::class.java)
         if (manager.areNotificationsEnabled()) manager.notify(1, notification(message))
     }
@@ -62,8 +81,9 @@ class DownloadService : Service() {
             running = true
             worker.execute {
                 try {
-                    MediaPublisher(this).recover()
-                    YoutubeDL.init(this); FFmpeg.init(this)
+                    FilePublisher(this).recover()
+                    keepAwake()
+                    try { YoutubeDL.init(this); FFmpeg.init(this) } finally { releaseAwake() }
                     drain()
                 } catch (error: Throwable) {
                     // Initialization failure is visible and halts the queue; never change engines.
@@ -76,7 +96,7 @@ class DownloadService : Service() {
     }
     private fun drain() {
         if (destroyed) return
-        if (Jobs.snapshot().any { it.pending.isNotEmpty() }) MediaPublisher(this).recover()
+        if (Jobs.snapshot().any { it.pending.isNotEmpty() || it.pendingName.isNotEmpty() }) FilePublisher(this).recover()
         if (!wifiAllowed()) {
             Jobs.snapshot().filter { it.status == "Queued" }.forEach { j -> Jobs.update(j.id) { it.copy(status = "Waiting for Wi-Fi") } }
             if (Jobs.snapshot().any { it.status == "Waiting for Wi-Fi" }) {
@@ -86,24 +106,31 @@ class DownloadService : Service() {
             return
         }
         Jobs.snapshot().filter { it.status == "Waiting for Wi-Fi" }.forEach { j -> Jobs.update(j.id) { it.copy(status = "Queued") } }
-        val job = synchronized(Jobs) { Jobs.snapshot().firstOrNull { it.status == "Queued" } }
-        if (job == null) { finish(); return }
         networkPaused = false
-        active = job.id
+        val job = synchronized(Jobs) {
+            Jobs.snapshot().firstOrNull { it.status == "Queued" }?.also { active = it.id }
+        }
+        if (job == null) { finish(); return }
         val directory = File(filesDir, "downloads/${job.id}")
         try {
             check(!cancelled.contains(job.id) && Jobs.snapshot().firstOrNull { it.id == job.id }?.status != "Cancelled") { "Cancelled" }
+            keepAwake()
             check(directory.isDirectory || directory.mkdirs())
+            if (job.playlist) {
+                expandPlaylist(job)
+                return
+            }
             Jobs.update(job.id) { it.copy(status = "Fetching details", speed = "", eta = "") }
             updateNotification("Fetching details")
             val metadata = YoutubeDLRequest(job.url)
-            metadata.addOption("--no-playlist")
+            selectSingleItem(metadata, job)
             metadata.addOption("--dump-single-json")
-            val info = JSONObject(YoutubeDL.execute(metadata, job.id).out)
+            val extracted = JSONObject(YoutubeDL.execute(metadata, job.id).out)
+            val info = extracted.optJSONArray("entries")?.optJSONObject(0) ?: extracted
             Jobs.update(job.id) { it.copy(title = info.optString("title"), thumbnail = info.optString("thumbnail")) }
             check(!cancelled.contains(job.id) && !networkPaused) { "Interrupted" }
             val request = YoutubeDLRequest(job.url)
-            request.addOption("--no-playlist")
+            selectSingleItem(request, job)
             request.addOption("--restrict-filenames")
             request.addOption("--no-mtime")
             request.addOption("--continue")
@@ -141,23 +168,56 @@ class DownloadService : Service() {
                 ?: directory.listFiles()?.singleOrNull { it.isFile && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
             check(output != null && output.isFile && output.parentFile == directory.canonicalFile) { "The completed media file could not be located" }
             Jobs.update(job.id) { it.copy(status = "Saving", speed = "", eta = "") }
-            updateNotification("Saving to Downloads/VideoStore")
+            updateNotification("Saving to ${job.destinationLabel}")
             val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(output.extension.lowercase()) ?: "application/octet-stream"
-            val uri = MediaPublisher(this).publish(output, mime, { cancelled.contains(job.id) },
-                safeMediaName(Jobs.snapshot().firstOrNull { it.id == job.id }?.title.orEmpty(), output.extension)) { pending ->
-                Jobs.update(job.id) { it.copy(pending = pending.toString()) }
-            }
-            Jobs.update(job.id) { it.copy(status = "Complete", progress = 100, uri = uri.toString(), pending = "") }
+            val uri = FilePublisher(this).publish(job, output, mime,
+                safeMediaName(Jobs.snapshot().firstOrNull { it.id == job.id }?.title.orEmpty(), output.extension), { cancelled.contains(job.id) })
+            Jobs.update(job.id) { it.copy(status = "Complete", progress = 100, uri = uri.toString(), pending = "", pendingName = "", pendingComplete = false) }
             directory.deleteRecursively()
         } catch (error: Throwable) {
-            Jobs.update(job.id) { it.copy(status = when { cancelled.contains(job.id) -> "Cancelled"; networkPaused -> "Waiting for Wi-Fi"; else -> "Failed" },
+            Jobs.update(job.id) { it.copy(status = when { destroyed -> "Queued"; cancelled.contains(job.id) || Jobs.snapshot().firstOrNull { j -> j.id == job.id }?.status == "Cancelled" -> "Cancelled"; networkPaused -> "Waiting for Wi-Fi"; else -> "Failed" },
                 speed = "", eta = "", message = friendlyError(error.message.orEmpty()), details = error.stackTraceToString()) }
         } finally {
-            if (cancelled.contains(job.id)) directory.deleteRecursively()
+            if (cancelled.contains(job.id) || Jobs.snapshot().firstOrNull { it.id == job.id }?.status == "Cancelled") directory.deleteRecursively()
             active = null; cancelled.remove(job.id)
+            releaseAwake()
+            // Also runs after playlist expansion returns early.
+            main.post { if (!destroyed) worker.execute { drain() } }
         }
-        // Re-enter through main thread so enqueue/start/stop cannot race each other.
-        main.post { if (!destroyed) worker.execute { drain() } }
+    }
+    private fun selectSingleItem(request: YoutubeDLRequest, job: Job) {
+        if (job.playlistIndex > 0) {
+            request.addOption("--yes-playlist")
+            request.addOption("--playlist-items", job.playlistIndex)
+        } else request.addOption("--no-playlist")
+    }
+    private fun expandPlaylist(job: Job) {
+        Jobs.update(job.id) { it.copy(status = "Reading playlist") }
+        updateNotification("Reading playlist")
+        val request = YoutubeDLRequest(job.url)
+        request.addOption("--yes-playlist")
+        request.addOption("--flat-playlist")
+        request.addOption("--dump-single-json")
+        val info = JSONObject(YoutubeDL.execute(request, job.id).out)
+        check(!cancelled.contains(job.id) && !networkPaused) { "Interrupted" }
+        val entries = info.optJSONArray("entries")
+        if (entries == null) {
+            // The explicit playlist option also accepts an ordinary media link.
+            Jobs.update(job.id) { it.copy(playlist = false, status = "Queued") }
+            return
+        }
+        check(entries.length() > 0) { "The playlist is empty or its items are unavailable" }
+        val children = (0 until entries.length()).map { index ->
+            val entry = entries.optJSONObject(index)
+            val candidate = if (entry?.optString("_type") in setOf("url", "url_transparent")) {
+                entry?.optString("webpage_url")?.takeIf { it != job.url && isMediaUrl(it) }
+                    ?: entry?.optString("url")?.takeIf(::isMediaUrl)
+            } else null
+            playlistEntry(entry?.optInt("playlist_index", index + 1) ?: (index + 1), candidate, entry?.optString("title").orEmpty())
+        }
+        Jobs.update(job.id) { it.copy(title = info.optString("title")) }
+        Jobs.expand(job.id, children)
+        check(!cancelled.contains(job.id)) { "Cancelled" }
     }
     private fun finish() {
         main.post {
@@ -185,7 +245,8 @@ class DownloadService : Service() {
     override fun onDestroy() {
         destroyed = true
         main.removeCallbacks(networkMonitor)
-        active?.let { cancelled.add(it); killEngineProcesses() }
+        releaseAwake()
+        active?.let { killEngineProcesses(it) }
         worker.shutdown(); canceller.shutdown(); super.onDestroy()
     }
 }

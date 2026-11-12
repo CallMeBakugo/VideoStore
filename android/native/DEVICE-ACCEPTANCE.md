@@ -6,7 +6,7 @@ device. Record device model, Android version, APK digest, result and relevant
 `adb logcat` output for each case. Test only media you are allowed to download.
 
 Build `tools/build-release.sh` and run `tools/verify-release.py` from the native
-project. Install `../bin/videostore-0.4.0-arm64-v8a-release.apk` using
+project. Install `../bin/videostore-0.5.0-arm64-v8a-release.apk` using
 `adb install -r` on the device with the previous release. Confirm that history
 and the launcher entry survive the update. Use a spare device/profile for the
 fresh-install checks below; preserve the main installation's data.
@@ -25,6 +25,22 @@ fresh-install checks below; preserve the main installation's data.
 | Duplicates | Submit the same URL/format again while active and after completion. Verify Download again needs an explicit tap, Back leaves the queue unchanged, and Open existing opens the saved file. |
 | Wi-Fi only | Enable on cellular/offline: queue waits. Join validated Wi-Fi: transfer begins. Lose Wi-Fi mid-download: engine pauses and partial files remain. Restore Wi-Fi: transfer resumes. Toggle preference off while waiting: queue proceeds. Queued jobs can be cancelled while waiting. |
 | Relaunch | Kill the process in Fetching details, Downloading, Converting, Saving and Cancelling. Reopen and resume; no job stays permanently in an obsolete active stage. |
+
+## Additional 0.5.0 cases
+
+| Case | Procedure and expected result |
+| --- | --- |
+| Separate folders | Choose an audio folder and a different video folder. Queue MP3/best audio and video jobs. Verify each lands in its selected folder, Open/Share work, and Delete file removes the correct document. |
+| Persistent folder access | Close/reopen, rotate, kill/restart the process and reboot the device. Folder choices and access persist. Use default resets just that media type. Existing queued items keep the old destination after a preference change. |
+| Folder picker cancellation | Cancel the picker; the old destination remains. Attempt a read-only/unavailable provider; show a readable error rather than silently reverting to default. |
+| Provider recovery | Kill the app during custom-folder file creation, copying, and just after output close. Resume; partial documents are removed and committed documents appear once. Check local storage, SD card if present, and a cloud provider if used. |
+| Revoked grant | Revoke or invalidate a selected folder during work. Job fails visibly and later queued jobs can proceed. Restore the original grant with the picker and retry. Failed publication journals must not be lost when removing history. |
+| Multi-link batch | Paste three distinct URLs plus a repeated URL. Verify three jobs in input order, one active at a time. A batch containing an invalid URL adds no jobs. Existing duplicates offer Download again/Add only new links/Back without changing the submitted settings. |
+| Playlist | Enable Download full playlists and submit a finite playlist with multiple audio/video entries. Check its per-item queue order, correct format/destination, unique outputs and continued processing after one unavailable item. Try an ordinary link in playlist mode too. |
+| Playlist recovery | Kill during Reading playlist and immediately after children appear. Resume; children must be inserted once. Cancel during listing; no permanent Reading playlist/Cancelling state remains. A long playlist should scroll without fetching every offscreen thumbnail. |
+| Background and screen off | Start a large file and a multi-item queue. Switch apps, lock the phone and swipe VideoStore out of recents in separate runs. Transfers/conversion and serial queue advancement should continue; unlock/reopen shows current state without restarting an already active job. |
+| Notifications | On Android 13+, allow notification permission and verify title, stage, percentage, remaining count and Cancel. Repeat with permission denied; downloading should still start. |
+| Interruption limits | Force-stop then reopen; unfinished work should be resumable. Do not expect downloading to continue through force-stop or device shutdown. Record any device battery restrictions that interrupt the service. |
 
 If the accepted engine misbehaves, record the error and device logs; keep the
 engine and historical audit records unchanged. A host smoke test is available as

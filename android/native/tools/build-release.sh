@@ -10,4 +10,4 @@ JAVA_HOME=$(mise where java@temurin-17)
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/.buildozer/android/platform/android-sdk}"
 cd "$native_dir"
 ./gradlew assembleRelease --console=plain
-install -m 644 app/build/outputs/apk/release/app-release.apk ../bin/videostore-0.4.0-arm64-v8a-release.apk
+install -m 644 app/build/outputs/apk/release/app-release.apk ../bin/videostore-0.5.0-arm64-v8a-release.apk

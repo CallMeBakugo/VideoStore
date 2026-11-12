@@ -17,7 +17,7 @@ android = native.parent
 sdk = Path(os.environ.get('ANDROID_HOME', Path.home() / '.buildozer/android/platform/android-sdk'))
 analyzer = sdk / 'cmdline-tools/latest/bin/apkanalyzer'
 signer = sdk / 'build-tools/34.0.0/apksigner'
-apk = android / 'bin/videostore-0.4.0-arm64-v8a-release.apk'
+apk = android / 'bin/videostore-0.5.0-arm64-v8a-release.apk'
 previous = android / 'bin/videostore-0.2.1-arm64-v8a_armeabi-v7a-release.apk'
 
 def run(*args):
@@ -27,11 +27,11 @@ def manifest(field):
     return run(analyzer, 'manifest', field, apk)
 
 assert manifest('application-id') == 'org.callmebakugo.videostore'
-assert manifest('version-code') == '1040000'
-assert manifest('version-name') == '0.4.0'
+assert manifest('version-code') == '1050000'
+assert manifest('version-name') == '0.5.0'
 assert manifest('debuggable') == 'false'
 permissions = set(manifest('permissions').splitlines())
-assert permissions == {'android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE', 'android.permission.MANAGE_EXTERNAL_STORAGE',
+assert permissions == {'android.permission.WAKE_LOCK', 'android.permission.POST_NOTIFICATIONS', 'android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE', 'android.permission.MANAGE_EXTERNAL_STORAGE',
                        'android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_DATA_SYNC'}, permissions
 xml = ET.fromstring(manifest('print'))
 a = '{http://schemas.android.com/apk/res/android}'
@@ -40,6 +40,7 @@ assert app.get(a + 'extractNativeLibs') == 'true'
 service = app.find('service')
 assert service.get(a + 'foregroundServiceType') in {'dataSync', '0x1', '1'}
 assert service.get(a + 'exported') == 'false'
+assert service.get(a + 'stopWithTask') == 'false'
 assert app.get(a + 'allowBackup') == 'false'
 verification = run(signer, 'verify', '--verbose', '--print-certs', apk)
 assert 'Verified using v2 scheme (APK Signature Scheme v2): true' in verification

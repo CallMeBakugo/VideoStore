@@ -37,13 +37,13 @@ class MediaPublisher(private val context: Context) {
     }
     fun recover() {
         val resolver = context.contentResolver
-        Jobs.snapshot().filter { it.pending.isNotEmpty() }.forEach { job ->
+        Jobs.snapshot().filter { it.pending.isNotEmpty() && it.destination.isEmpty() }.forEach { job ->
             val uri = Uri.parse(job.pending)
             val published = resolver.query(uri, arrayOf(MediaStore.Downloads.IS_PENDING), null, null, null)?.use {
                 it.moveToFirst() && it.getInt(0) == 0
             } ?: false
             if (published) Jobs.update(job.id) { it.copy(status = "Complete", progress = 100, uri = job.pending, pending = "") }
-            else { resolver.delete(uri, null, null); Jobs.update(job.id) { it.copy(status = when { it.status in listOf("Cancelling", "Cancelled") -> "Cancelled"; it.status.startsWith("Failed") -> it.status; else -> "Queued" }, pending = "", progress = 0) } }
+            else { resolver.delete(uri, null, null); Jobs.update(job.id) { it.copy(status = recoveredPublicationStatus(it.status, false), pending = "", progress = 0) } }
         }
         resolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.Downloads._ID),
             "${MediaStore.Downloads.IS_PENDING}=1 AND ${MediaStore.Downloads.OWNER_PACKAGE_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH}=?",
@@ -54,6 +54,6 @@ class MediaPublisher(private val context: Context) {
             File(context.filesDir, "downloads/${j.id}").deleteRecursively()
         }
         Jobs.snapshot().filter { it.status == "Cancelling" }.forEach { j -> Jobs.update(j.id) { it.copy(status = "Cancelled") } }
-        Jobs.snapshot().filter { it.status in listOf("Fetching details", "Downloading", "Converting", "Saving", "Publishing") }.forEach { j -> Jobs.update(j.id) { it.copy(status = "Queued", progress = 0) } }
+        Jobs.snapshot().filter { it.status in listOf("Reading playlist", "Fetching details", "Downloading", "Converting", "Saving", "Publishing") }.forEach { j -> Jobs.update(j.id) { it.copy(status = "Queued", progress = 0) } }
     }
 }

@@ -37,11 +37,30 @@ partial-download recovery, Open/Share, and separate history removal and file
 deletion. Shared links prefill the URL; downloading requires a tap. Format
 selection and the optional Wi-Fi-only setting are remembered.
 
+Open **Download folders…** to choose separate audio and video destinations with
+Android's folder picker. Both default to Downloads/VideoStore and persist across
+app/device restarts. Folder changes apply to newly queued work; existing jobs
+keep their selected destination. Android may require a subfolder rather than a
+storage root. The app retains grants used by queued jobs and saved-file history.
+
+Paste several links, one per line, to queue them together. Enable **Download full
+playlists** to expand playlist links into individual jobs. The queue downloads
+one item at a time, in submission/playlist order; failed items do not stop later
+items. Playlist expansion and the child jobs are journaled together.
+
+The foreground service keeps working when another app is visible, including
+when the task is swiped away. Active work holds a timed, renewed partial wake
+lock for screen-off transfers/conversion. Android 13+ asks for notification
+permission so progress and Cancel can stay visible. Denying notifications does
+not block downloading. Force-stop, device shutdown and system/vendor power
+restrictions can still interrupt work; unfinished jobs can be resumed on reopen.
+These device behaviors still require on-device acceptance testing.
+
 Build the signed ARM64 APK with JDK 17 and the existing local signing setup:
 
     android/native/tools/build-release.sh
 
-Output: `android/bin/videostore-0.4.0-arm64-v8a-release.apk`.
+Output: `android/bin/videostore-0.5.0-arm64-v8a-release.apk`.
 
 Host checks (set `JAVA_HOME` to JDK 17):
 
