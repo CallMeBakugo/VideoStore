@@ -1,3 +1,60 @@
+Native improvements — 0.4.0; device acceptance pending
+=====================================================
+
+Current changes
+---------------
+- Signed ARM64 release 0.4.0, versionCode 1040000. Build and verify with the
+  existing tools; `release-verification.json` records the current APK digest,
+  permissions, signer continuity and historical engine-audit checks.
+- Queue entries retain title, thumbnail, URL, format and error details. Cards
+  display download percentage, speed/ETA when available, and explicit fetching,
+  downloading, converting and saving stages. Conversion and saving use an
+  indeterminate progress indicator. A local fixture test verifies the pinned
+  engine's stdout contract with host FFmpeg, including conversion-stage logs.
+- Failures have readable explanations, expandable technical details and Retry.
+  Stable per-job paths and `--continue` retain partial files after interruption
+  or failure. Resumption depends on the site's range/fragment support; it can
+  restart when the remote server cannot resume. Cancel removes temporary output;
+  retrying a cancelled job begins again. Final output is selected from yt-dlp's
+  `after_move` path, so retained fragments cannot be mistaken for finished media.
+- Publication retains the pending-URI journal and recovery sweep. Ambiguous
+  publication is reconciled before another queued attempt. Completed entries
+  and cancelled entries have their leftover temporary files cleaned on recovery.
+- Open and Share grant read access to the content URI. Missing files/apps get a
+  readable error. Remove from history preserves the saved file; Delete file
+  permanently deletes it. Both actions explain their effects in a dialog.
+- Main screen puts URL, format and Download first, then separates active work
+  from history. Familiar format labels now include explanations. Format selection
+  and Wi-Fi-only preference persist; shared text extracts its HTTP(S) URL and
+  requires Download to be tapped. Identical URL/format submissions offer Download
+  again, and Open existing when a saved URI exists.
+- Wi-Fi-only queues wait for validated Wi-Fi and resume automatically while the
+  service is alive. A one-second monitor interrupts the engine on Wi-Fi loss,
+  retaining partial downloads. This is a best-effort pause, not a network firewall:
+  brief traffic can occur between connectivity change and engine termination.
+  Thumbnail requests also respect the setting when started. ACCESS_NETWORK_STATE
+  is the only added permission; it is normal and has no runtime consent dialog.
+- Engine versions and historical provenance records are unchanged. No extra app
+  dependencies, engine updater, git commits or pushes were introduced.
+
+Validation
+----------
+- `:app:testDownloadLogic`: 19 dependency-free JVM regression checks (structured
+  progress, unavailable estimates, conversion stages, filenames, failure messages
+  and active/terminal status membership).
+- `assembleDebug`, `lintDebug`, signed `assembleRelease`/lint-vital and release
+  identity/signature verification pass. Full lint retains existing advisory
+  warnings about storage permission, dependency age, launcher assets and ABI.
+- `python tools/test-engine-options.py`: pinned yt-dlp source on host Python,
+  localhost WAV -> MP3 via host FFmpeg; progress, conversion stage, final path
+  and output existence pass. This does not run Android native binaries.
+- No adb device is connected. First-launch behavior, native MP3/video merge,
+  cancellation, recovery, file intents and Wi-Fi transitions remain unverified
+  on Android. Follow [DEVICE-ACCEPTANCE.md](DEVICE-ACCEPTANCE.md).
+
+The following 0.3.1 notes are historical; current behavior above supersedes
+statements below about restart-from-zero recovery, UI, version and permissions.
+
 Native migration — 0.3.1 built; device acceptance pending
 ===================================================
 

@@ -30,18 +30,27 @@ The bar-widget sibling lives in [VideoStoreBar](../VideoStoreBar).
 
 ## Mobile (Android APK)
 
-The same app ships as an APK — same engine philosophy: pure download logic
-(`videostore/core_lib.py`, yt-dlp imported as a library, no subprocess), a
-thin Kivy shell (`videostore/main.py`), built with buildozer. No store, no
-iOS: releases attach the raw APK here.
+The Android app is now native Kotlin/Compose, using the pinned
+`youtubedl-android` and bundled FFmpeg engine. It supports MP3 conversion,
+merged video, a persistent queue, media cards with progress stages, retry and
+partial-download recovery, Open/Share, and separate history removal and file
+deletion. Shared links prefill the URL; downloading requires a tap. Format
+selection and the optional Wi-Fi-only setting are remembered.
 
-Build (Arch example; JDK 17, `buildozer` + `cython` on PATH):
+Build the signed ARM64 APK with JDK 17 and the existing local signing setup:
 
-    cd android
-    buildozer android debug
+    android/native/tools/build-release.sh
 
-Output: `android/bin/videostore-0.1.0-debug.apk`.
+Output: `android/bin/videostore-0.4.0-arm64-v8a-release.apk`.
 
-Note: yt-dlp's mp3 extraction needs ffmpeg; python-for-android does not
-bundle it, so on-device "Audio only (mp3)" returns best-audio native format
-(m4a/webm). The other formats are unaffected.
+Host checks (set `JAVA_HOME` to JDK 17):
+
+    android/native/gradlew -p android/native testDownloadLogic assembleDebug lintDebug
+    python android/native/tools/test-engine-options.py
+    python android/native/tools/verify-release.py
+
+The engine-options smoke test uses the pinned Python bundle, localhost media,
+and host FFmpeg. It does not establish Android runtime behavior. See
+[device acceptance](android/native/DEVICE-ACCEPTANCE.md) and the
+[implementation notes](android/native/IMPLEMENTATION.md) for remaining checks.
+The prior Kivy sources remain under `android/videostore` as historical code.

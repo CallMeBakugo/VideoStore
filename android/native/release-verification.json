@@ -1,10 +1,10 @@
 {
-  "apk": "android/bin/videostore-0.3.1-arm64-v8a-release.apk",
-  "sha256": "0424ac2d61998472718cd7e3e8582be6075f3f72c0ac7cbe17d7fc547c176f76",
-  "bytes": 75142014,
+  "apk": "android/bin/videostore-0.4.0-arm64-v8a-release.apk",
+  "sha256": "7a67b80b5abde10198d10d095c2dc87045a0008e1bd75b52022a1e8c6922a51d",
+  "bytes": 75215398,
   "package": "org.callmebakugo.videostore",
-  "versionCode": 1030000,
-  "versionName": "0.3.1",
+  "versionCode": 1040000,
+  "versionName": "0.4.0",
   "minSdk": 29,
   "targetSdk": 34,
   "debuggable": false,
@@ -12,6 +12,7 @@
     "arm64-v8a"
   ],
   "permissions": [
+    "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
     "android.permission.INTERNET",
